@@ -18,7 +18,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     headers.delete("accept-encoding");
-    headers.delete("cookie");
+    
     headers.delete("authorization");
     headers.delete("origin");
     headers.delete("referer");
