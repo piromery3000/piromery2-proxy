@@ -9,16 +9,23 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, TARGET);
 
     const headers = new Headers();
+
     for (const [name, value] of Object.entries(req.headers)) {
       if (
         value === undefined ||
         ["host", "connection", "content-length", "transfer-encoding"].includes(name)
-      ) continue;
-      headers.set(name, Array.isArray(value) ? value.join(", ") : value);
+      ) {
+        continue;
+      }
+
+      headers.set(
+        name,
+        Array.isArray(value) ? value.join(", ") : value
+      );
     }
 
+    // Allow cookies to reach Cloudflare Worker.
     headers.delete("accept-encoding");
-    
     headers.delete("authorization");
     headers.delete("origin");
     headers.delete("referer");
@@ -32,16 +39,46 @@ const server = http.createServer(async (req, res) => {
       duplex: "half",
       redirect: "manual"
     });
-const setCookie = response.headers.get("set-cookie");
-    res.writeHead(response.status, {
-      "content-type": response.headers.get("content-type") || "application/octet-stream",
-      "cache-control": "no-store"
-    });
 
-    res.end(Buffer.from(await response.arrayBuffer()));
+    // Forward response headers, including session cookies.
+    const responseHeaders = {};
+
+    for (const [name, value] of response.headers.entries()) {
+      if (
+        [
+          "connection",
+          "transfer-encoding",
+          "content-length",
+          "content-encoding",
+          "set-cookie"
+        ].includes(name.toLowerCase())
+      ) {
+        continue;
+      }
+
+      responseHeaders[name] = value;
+    }
+
+    const cookies = response.headers.getSetCookie();
+
+    if (cookies.length > 0) {
+      responseHeaders["set-cookie"] = cookies;
+    }
+
+    responseHeaders["cache-control"] = "no-store";
+
+    res.writeHead(response.status, responseHeaders);
+
+    const body = Buffer.from(await response.arrayBuffer());
+    res.end(body);
+
   } catch (error) {
     console.error("Proxy error:", error);
-    res.writeHead(502, { "content-type": "text/plain" });
+
+    res.writeHead(502, {
+      "content-type": "text/plain; charset=utf-8"
+    });
+
     res.end("Bad Gateway");
   }
 });
