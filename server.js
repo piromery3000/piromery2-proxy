@@ -32,7 +32,7 @@ const server = http.createServer(async (req, res) => {
       duplex: "half",
       redirect: "manual"
     });
-
+const setCookie = response.headers.get("set-cookie");
     res.writeHead(response.status, {
       "content-type": response.headers.get("content-type") || "application/octet-stream",
       "cache-control": "no-store"
